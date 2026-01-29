@@ -1,0 +1,24 @@
+{
+  "name": "oc-transpo",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "tsx src/index.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "protobufjs": "^8.0.0",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/long": "^4.0.2",
+    "@types/node": "^25.1.0",
+    "typescript": "^5.9.3"
+  }
+}
