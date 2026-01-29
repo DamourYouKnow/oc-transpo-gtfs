@@ -15,7 +15,7 @@ async function test() {
         scheduleUrl,
         `${rootDirectory}/cache/`
     );
-    scheduleUpdater.update();
+    //scheduleUpdater.update();
 
     const decoded = await realtime();
     const updates = decoded.entity;

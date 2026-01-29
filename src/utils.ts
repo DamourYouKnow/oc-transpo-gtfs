@@ -14,11 +14,14 @@ export function readFile(path: string): Promise<string> {
 }
 
 export function getBinary(url: string) {
+    // TODO: Move outside function.
+    const appKey = process.env.OC_TRANSPO_APP_KEY;
+
     return new Promise<Buffer>((resolve, reject) => {
         fetch(url, { 
             headers: {
                 'Cache-Control': 'no-cache',
-                'Ocp-Apim-Subscription-Key': 'TODO',
+                'Ocp-Apim-Subscription-Key': appKey,
                 'Content-Type': 'application/octet-stream'
             }
         }).then((response) => {
