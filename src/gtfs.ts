@@ -1,7 +1,5 @@
 import AdmZip from 'adm-zip';
 import { decode } from './protobuffer';
-import { getBinary } from './utils';
-import { time } from 'node:console';
 
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
@@ -59,7 +57,7 @@ interface StopTimeEvent {
 }
 
 export async function realtime(): Promise<FeedMessage<TripUpdateEntity>> {
-    const buffer = await getBinary(`${apiRoot}/TripUpdates`);
+    const buffer = await getGTFS(`${apiRoot}/TripUpdates`);
     const json = await decode('gtfs/gtfs-realtime.proto', 'FeedMessage', buffer);
     return json as FeedMessage<TripUpdateEntity>;
 }
@@ -78,7 +76,7 @@ export class ScheduleUpdater {
 
     public async update(): Promise<void> {
         const timestamp = new Date().toISOString().replace(/:/g, '');
-        const zipData = await getBinary(this.url);
+        const zipData = await getGTFS(this.url);
         const zip = new AdmZip(zipData);
         await zip.extractAllToAsync(`${this.cachePath}/schedule/${timestamp}`, true);
 
@@ -86,3 +84,26 @@ export class ScheduleUpdater {
         console.log("Schedule updated");
     }
 }
+
+function getGTFS(url: string) {
+    // TODO: Move outside function.
+    const appKey = process.env.OC_TRANSPO_APP_KEY;
+
+    return new Promise<Buffer>((resolve, reject) => {
+        fetch(url, { 
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Ocp-Apim-Subscription-Key': appKey,
+                'Content-Type': 'application/octet-stream'
+            }
+        }).then((response) => {
+            return response.blob();
+        }).then((blob) => {
+            return blob.arrayBuffer();
+        }).then((data) => {
+            resolve(Buffer.from(data));
+        }).catch((err) => {
+            reject(err);
+        });
+    });
+};
