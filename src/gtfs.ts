@@ -1,6 +1,8 @@
 import AdmZip from 'adm-zip';
 import { decode } from './protobuffer';
 
+import { httpGetBinary } from './utils';
+
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
 const apiRoot = `${apiHost}/octranspo/gtfs-rt-tp/beta/v1`;
@@ -76,7 +78,7 @@ export class ScheduleUpdater {
 
     public async update(): Promise<void> {
         const timestamp = new Date().toISOString().replace(/:/g, '');
-        const zipData = await getGTFS(this.url);
+        const zipData = await httpGetBinary(this.url);
         const zip = new AdmZip(zipData);
         await zip.extractAllToAsync(`${this.cachePath}/schedule/${timestamp}`, true);
 
@@ -85,25 +87,13 @@ export class ScheduleUpdater {
     }
 }
 
-function getGTFS(url: string) {
-    // TODO: Move outside function.
+async function getGTFS(url: string): Promise<Buffer> {
     const appKey = process.env.OC_TRANSPO_APP_KEY;
+    if (!appKey) {
+        throw Error("OC_TRANSPO_APP_KEY environment variable missing");
+    }
 
-    return new Promise<Buffer>((resolve, reject) => {
-        fetch(url, { 
-            headers: {
-                'Cache-Control': 'no-cache',
-                'Ocp-Apim-Subscription-Key': appKey,
-                'Content-Type': 'application/octet-stream'
-            }
-        }).then((response) => {
-            return response.blob();
-        }).then((blob) => {
-            return blob.arrayBuffer();
-        }).then((data) => {
-            resolve(Buffer.from(data));
-        }).catch((err) => {
-            reject(err);
-        });
+    return await httpGetBinary(url, {
+        'Ocp-Apim-Subscription-Key': appKey
     });
 };
