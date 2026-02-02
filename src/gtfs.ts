@@ -1,7 +1,14 @@
 import AdmZip from 'adm-zip';
 import { decode } from './protobuffer';
 
-import { httpGetBinary } from './utils';
+import { 
+    httpGetBinary,
+    createDirectory, 
+    listDirectory,
+    parseISODate, 
+    removeDirectory
+} from './utils';
+import { parse } from 'node:path';
 
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
@@ -60,30 +67,84 @@ interface StopTimeEvent {
 
 export async function realtime(): Promise<FeedMessage<TripUpdateEntity>> {
     const buffer = await getGTFS(`${apiRoot}/TripUpdates`);
-    const json = await decode('gtfs/gtfs-realtime.proto', 'FeedMessage', buffer);
+
+    const json = await decode(
+        'gtfs/gtfs-realtime.proto', 
+        'FeedMessage', buffer
+    );
+    
     return json as FeedMessage<TripUpdateEntity>;
 }
 
-export class ScheduleUpdater {
+export class ScheduleManager {
     private url: string;
     private cachePath: string;
-    private updateFrequency = 24 * 60 * 60 * 1000;
-    private updateCheckFrequency = 1 * 60 * 1000;
+    private updateFrequency = 24 * 60 * 60 * 1000; // 24 hours
+    private updateCheckFrequency = 1 * 60 * 1000; // 1 minute
+    private timeout: NodeJS.Timeout | null = null;
 
     public constructor(url: string, cachePath: string) {
         this.url = url;
         this.cachePath = cachePath;
     }
 
+    public async run() {
+        await this.update();
+
+        this.timeout = setInterval(() => {
+            this.update();
+        }, this.updateCheckFrequency);
+    }
+
+    public stop() {
+        if (this.timeout) {
+            clearInterval(this.timeout);
+        }
+    }
 
     public async update(): Promise<void> {
-        const timestamp = new Date().toISOString().replace(/:/g, '');
-        const zipData = await httpGetBinary(this.url);
-        const zip = new AdmZip(zipData);
-        await zip.extractAllToAsync(`${this.cachePath}/schedule/${timestamp}`, true);
+        try {
+            // Ensure cache directory exists
+            await createDirectory(this.cachePath);
 
-        // TODO: Proper log system
-        console.log("Schedule updated");
+            const updateRequired = await this.checkForUpdate();
+            if (!updateRequired) return;
+
+            const timestamp = new Date().toISOString().replaceAll(':', '_');
+            const zipData = await httpGetBinary(this.url);
+            const zip = new AdmZip(zipData);
+            await zip.extractAllToAsync(`${this.cachePath}${timestamp}`, true);
+
+            // TODO: Proper log system
+            console.log("Schedule updated");
+        }
+        catch (err) {
+            console.error(err);
+        }
+    }
+
+    private async checkForUpdate(): Promise<boolean> {
+        const names = await listDirectory(this.cachePath)
+        if (names.length == 0) return true;
+        
+        // Identify expired or invalid items
+        const flaggedForRemove = names.filter((name) => {
+            const date = parseISODate(name);
+            if (!date) return true;
+
+            const delta = Date.now() - date.getTime();
+            return delta > this.updateFrequency;
+        });
+
+        // Remove expired or invalid items in parallel
+        const removeDirectoryPromises = flaggedForRemove.map((name) => {
+            return removeDirectory(`${this.cachePath}${name}`);
+        });
+
+        await Promise.all(removeDirectoryPromises);
+
+        // Update required if all items are removed
+        return flaggedForRemove.length >= names.length;
     }
 }
 

@@ -13,6 +13,44 @@ export function readFile(path: string): Promise<string> {
     });
 }
 
+export function listDirectory(path: string): Promise<string[]> {
+    return new Promise<string[]>((resolve, reject) => {
+        fs.readdir(path, (err, data) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                resolve(data);
+            }
+        });
+    });
+}
+
+export function createDirectory(path: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        fs.mkdir(path, { recursive: true }, (err) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                resolve();
+            }
+        });
+    })
+}
+
+export function removeDirectory(path: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        fs.rm(path, { recursive: true, force: true }, (err) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                resolve();
+            }
+        });
+    }) 
+}
 
 export function httpGetBinary(
     url: string,
@@ -37,4 +75,14 @@ export function httpGetBinary(
             reject(err);
         });
     });
+}
+
+export function parseISODate(isoString: string): Date | null {
+    isoString = isoString.replaceAll('_', ':')
+    const date = new Date(isoString);
+
+    const validDate = !isNaN(date.getTime());
+    if (!validDate) return null;
+
+    return date;
 }

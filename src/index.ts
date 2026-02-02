@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { realtime, ScheduleUpdater } from './gtfs.ts';
+import { realtime, ScheduleManager } from './gtfs.ts';
 
 
 const scheduleHost = "https://oct-gtfs-emasagcnfmcgeham.z01.azurefd.net";
@@ -11,11 +11,11 @@ test();
 
 async function test() {
     // Test manual update
-    const scheduleUpdater = new ScheduleUpdater(
+    const scheduleUpdater = new ScheduleManager(
         scheduleUrl,
-        `${rootDirectory}/cache/`
+        `${rootDirectory}/cache/schedule/`
     );
-    //scheduleUpdater.update();
+    scheduleUpdater.run();
 
     const decoded = await realtime();
     const updates = decoded.entity;
