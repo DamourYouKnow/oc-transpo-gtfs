@@ -8,7 +8,6 @@ import {
     parseISODate, 
     removeDirectory
 } from './utils';
-import { parse } from 'node:path';
 
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
