@@ -20,7 +20,10 @@ export default class Logger {
 
     public constructor(logPath: string) {
         this.logPath = logPath;
-        this.logFile = path.resolve(this.logPath, utils.ISOTimestamp(true));
+        this.logFile = path.resolve(
+            this.logPath, 
+            `${utils.ISOTimestamp(true)}.txt`
+        );
         Logger.instance = this;
     }
 

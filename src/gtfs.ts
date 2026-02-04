@@ -7,7 +7,6 @@ import Logger from './logger';
 import * as utils from './utils';
 import { CSVRecord, readCSVFile } from './csv';
 import TaskScheduler from './task-scheduler';
-import { time } from 'console';
 
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
@@ -66,22 +65,129 @@ interface StopTimeEvent {
 type ScheduleType = 'agency' | 'calendar_dates' | 'calendar' | 'feed_info'
     | 'routes' | 'shapes' | 'stop_times' | 'stops' | 'trips';
 
+enum RouteType {
+    Tram = 0,
+    Subway = 1,
+    Rail = 2,
+    Bus = 3,
+    Ferry = 4,
+    Cable = 5,
+    AerialLift = 6,
+    Funicular = 7,
+    TrolleyBus = 11,
+    Monorail = 12
+}
+
+// https://gtfs.org/documentation/schedule/reference/#agencytxt
+interface AgencyCSVRecord extends CSVRecord {
+    agency_id: string,
+    agency_name: string,
+    agency_url: string,
+    agency_timezone: string,
+    agency_lang?: string,
+    agency_phone?: string,
+    agency_fare_url?: string,
+    agency_email?: string
+}
+
+interface CalendarDateCSVRecord extends CSVRecord {
+    service_id: string,
+    date: string,
+    exception_type: string
+}
+
+interface CalendarCSVRecord extends CSVRecord {
+    service_id: string,
+    monday: string,
+    tuesday: string,
+    wednesday: string,
+    thursday: string,
+    friday: string,
+    saturday: string,
+    sunday: string,
+    start_date: string,
+    end_date: string
+}
+
+interface FeedInfoRecord extends CSVRecord {
+    feed_publisher_name: string,
+    feed_publisher_url: string,
+    feed_lang: string,
+    default_lang: string,
+    feed_start_date: string,
+    feed_end_date: string,
+    feed_version: string,
+    feed_contact_email: string,
+    feed_contact_url: string
+}
+
+interface RouteCSVRecord extends CSVRecord {
+    route_id: string,
+    agency_id?: string,
+    route_short_name?: string,
+    route_long_name?: string,
+    route_desc?: string,
+    route_type: string,
+    route_url?: string,
+    route_color?: string,
+    route_text_color?: string,
+    route_sort_order?: string,
+    continuous_pickup?: string,
+    continuous_drop_off?: string,
+    network_id: string
+}
+
+interface ShapeCSVRecord extends CSVRecord {
+    shape_id: string,
+    shape_pt_lat: string,
+    shape_pt_lon: string,
+    shape_pt_sequence: string,
+    shape_dist_traveled: string
+}
+
+interface StopTimeCSVRecord extends CSVRecord {
+    trip_id: string,
+    arrival_time?: string,
+    departure_time?: string,
+    stop_id?: string,
+    stop_sequence: string,
+    stop_headsign?: string,
+    pickup_type?: string,
+    drop_off_type?: string,
+    shape_dist_traveled?: string,
+    timepoint?: string
+}
+
 interface StopCSVRecord extends CSVRecord {
     stop_id: string,
-    stop_code: string,
+    stop_code?: string,
     stop_name: string,
-    tts_stop_name: string,
-    stop_desc: string,
+    tts_stop_name?: string,
+    stop_desc?: string,
     stop_lat: string,
     stop_lon: string,
-    zone_id: string,
-    stop_url: string,
-    location_type: string,
-    parent_station: string,
-    stop_timezone: string,
-    wheelchair_boarding: string,
-    level_id: string,
-    platform_code: string
+    zone_id?: string,
+    stop_url?: string,
+    location_type?: string,
+    parent_station?: string,
+    stop_timezone?: string,
+    wheelchair_boarding?: string,
+    level_id?: string,
+    platform_code?: string
+}
+
+interface TripCSVRecord extends CSVRecord {
+    route_id: string,
+    service_id: string,
+    trip_id: string,
+    trip_headsign?: string,
+    trip_short_name?: string,
+    direction_id?: string,
+    block_id?: string,
+    shape_id?: string,
+    wheelchair_accessible?: string,
+    bikes_allowed?: string,
+    cars_allowed?: string
 }
 
 export async function realtime(): Promise<FeedMessage<TripUpdateEntity>> {
