@@ -17,9 +17,10 @@ async function test() {
     // Test manual update
     const scheduleUpdater = new ScheduleManager(
         scheduleUrl,
-        path.resolve(rootDirectory, 'cache/schedule')
+        path.resolve(rootDirectory, 'cache/schedule'),
+        1 * 60 * 1000
     );
-    await scheduleUpdater.run();
+    await scheduleUpdater.start();
 
     // Test CSV loading
     // TODO: Move into ScheduleManager

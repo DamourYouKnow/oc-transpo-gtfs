@@ -12,6 +12,7 @@ import {
 } from './utils';
 
 import { CSVRecord, readCSVFile } from './csv';
+import TaskScheduler from './task-scheduler';
 
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
@@ -103,26 +104,20 @@ export class ScheduleManager {
     private url: string;
     private cachePath: string;
     private updateFrequency = 24 * 60 * 60 * 1000; // 24 hours
-    private updateCheckFrequency = 1 * 60 * 1000; // 1 minute
-    private timeout: NodeJS.Timeout | null = null;
+    private scheduler: TaskScheduler;
 
-    public constructor(url: string, cachePath: string) {
+    public constructor(
+        url: string, 
+        cachePath: string, 
+        updateCheckFrequency: number
+    ) {
         this.url = url;
         this.cachePath = cachePath;
+        this.scheduler = new TaskScheduler(updateCheckFrequency, this.update);
     }
 
-    public async run() {
-        await this.update();
-
-        this.timeout = setInterval(() => {
-            this.update();
-        }, this.updateCheckFrequency);
-    }
-
-    public stop() {
-        if (this.timeout) {
-            clearInterval(this.timeout);
-        }
+    public async start() {
+        await this.scheduler.start();
     }
 
     public async ReadData(): Promise<void> {
