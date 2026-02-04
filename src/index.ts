@@ -3,7 +3,8 @@ import * as path from 'path';
 import Logger from './logger.ts';
 
 import { 
-    realtime, 
+    tripUpdates,
+    vehiclePositions,
     ScheduleManager
 } from './gtfs.ts';
 
@@ -31,9 +32,7 @@ async function test() {
     // TODO: Move into ScheduleManager
     await scheduleUpdater.ReadData();
 
-
-    const decoded = await realtime();
-    const updates = decoded.entity;
+    const updates = (await tripUpdates()).entity;
     
     const routeUpdates = updates.filter((update) => {
         return update.tripUpdate.trip.routeId == '75'
@@ -57,7 +56,9 @@ async function test() {
         return [...acc, ...append];
     }, []);
 
-    //console.log(JSON.stringify(routeUpdates, null, 2));
+    const positions = (await vehiclePositions()).entity
+
+    //console.log(JSON.stringify(positions, null, 2));
 }
 
 

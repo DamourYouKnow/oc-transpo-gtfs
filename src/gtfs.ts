@@ -10,7 +10,8 @@ import TaskScheduler from './task-scheduler';
 
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
-const apiRoot = `${apiHost}/octranspo/gtfs-rt-tp/beta/v1`;
+const tripUpdateRoot = `${apiHost}/octranspo/gtfs-rt-tp/beta/v1`;
+const vehiclePositionRoot = `${apiHost}/octranspo/gtfs-rt-vp/beta/v1`;
 
 // https://gtfs.org/documentation/realtime/reference/
 type ScheduleRelationship = "SCHEDULED" | "ADDED" | "UNSCHEDULED" | "CANCELED"
@@ -33,32 +34,33 @@ interface FeedEntity {
     is_deleted: boolean,
 }
 
+// Trip update
+// TODO: Merge into single nested interface
 interface TripUpdateEntity extends FeedEntity {
-    tripUpdate: TripUpdate
+    tripUpdate: {
+        trip: {
+            tripId: string,
+            startTime: string,
+            startDate: string,
+            scheduleRelationship: ScheduleRelationship,
+            routeId: string
+        },
+        stopTimeUpdate:  {
+            stopSequence: number,
+            arrival: {
+                time: string
+            },
+            stopId: string,
+            scheduleRelationship: ScheduleRelationship
+        }[]
+    }
 }   
 
-interface TripUpdate {
-    trip: Trip,
-    stopTimeUpdate: StopTimeUpdate[]
-}
 
-interface Trip {
-    tripId: string,
-    startTime: string,
-    startDate: string,
-    scheduleRelationship: ScheduleRelationship,
-    routeId: string
-}
-
-interface StopTimeUpdate {
-    stopSequence: number,
-    arrival: StopTimeEvent,
-    stopId: string,
-    scheduleRelationship: ScheduleRelationship
-}
-
-interface StopTimeEvent {
-    time: string
+// Vehicle position
+// TODO: Merge into single nested interface
+interface VehiclePositionEntity extends FeedEntity {
+    
 }
 
 // TODO: Better name for this type?
@@ -190,15 +192,33 @@ interface TripCSVRecord extends CSVRecord {
     cars_allowed?: string
 }
 
-export async function realtime(): Promise<FeedMessage<TripUpdateEntity>> {
-    const buffer = await getGTFS(`${apiRoot}/TripUpdates`);
+type TripUpdateMessage = Promise<FeedMessage<TripUpdateEntity>>;
+type VehiclePositionMessage = Promise<FeedMessage<VehiclePositionEntity>>;
 
+export async function tripUpdates(): Promise<TripUpdateMessage> {
+    const buffer = await getGTFS(`${tripUpdateRoot}/TripUpdates`);
+
+    // TODO: Path resolution for .proto file
     const json = await decode(
         'gtfs/gtfs-realtime.proto', 
-        'FeedMessage', buffer
+        'FeedMessage', 
+        buffer
     );
     
-    return json as FeedMessage<TripUpdateEntity>;
+    return json as TripUpdateMessage;
+}
+
+export async function vehiclePositions(): Promise<VehiclePositionMessage> {
+    const buffer = await getGTFS(`${vehiclePositionRoot}/VehiclePositions`);
+
+    // TODO: Path resolution for .proto file
+    const json = await decode(
+        'gtfs/gtfs-realtime.proto',
+        'FeedMessage',
+        buffer
+    );
+
+    return json as VehiclePositionMessage;
 }
 
 export class ScheduleManager {
@@ -242,7 +262,7 @@ export class ScheduleManager {
 
             const stops = await readCSVFile<StopCSVRecord>(filepath);
 
-            Logger.logInfo(`${cacheDirectoryName} read from cache`);
+            Logger.logInfo(`Schedule ${cacheDirectoryName} read from cache`);
         }
         catch (err) {
             Logger.logError("Failed to read from cache", err);
@@ -303,7 +323,11 @@ async function getGTFS(url: string): Promise<Buffer> {
         throw Error("OC_TRANSPO_APP_KEY environment variable missing");
     }
 
-    return await utils.httpGetBinary(url, {
+    const data = await utils.httpGetBinary(url, {
         'Ocp-Apim-Subscription-Key': appKey
     });
+
+    Logger.logInfo(`GTFS realtime data downloaded from ${url}`);
+
+    return data;
 };
