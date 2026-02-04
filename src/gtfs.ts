@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 import AdmZip from 'adm-zip';
 import { decode } from './protobuffer';
 
@@ -9,6 +11,8 @@ import {
     removeDirectory
 } from './utils';
 
+import { CSVRecord, readCSVFile } from './csv';
+
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
 const apiRoot = `${apiHost}/octranspo/gtfs-rt-tp/beta/v1`;
@@ -17,8 +21,6 @@ const apiRoot = `${apiHost}/octranspo/gtfs-rt-tp/beta/v1`;
 type ScheduleRelationship = "SCHEDULED" | "ADDED" | "UNSCHEDULED" | "CANCELED"
         | "REPLACEMENT" | "DUPLICATED" | "NEW" | "DELETED";
 
-
-
 export interface FeedMessage<TFeedEntity extends FeedEntity> {
     header: FeedHeader,
     entity: TFeedEntity[],
@@ -26,7 +28,7 @@ export interface FeedMessage<TFeedEntity extends FeedEntity> {
 
 interface FeedHeader {
     gtfsRealtimeVersion: string,
-    incrementality: "FULL_DATASET" | "DIFFERENTIAL",
+    incrementality: 'FULL_DATASET' | 'DIFFERENTIAL',
     timestamp: string, // uint64
     feed_version: string | undefined
 }
@@ -62,6 +64,28 @@ interface StopTimeUpdate {
 
 interface StopTimeEvent {
     time: string
+}
+
+// TODO: Better name for this type?
+type ScheduleType = 'agency' | 'calendar_dates' | 'calendar' | 'feed_info'
+    | 'routes' | 'shapes' | 'stop_times' | 'stops' | 'trips';
+
+interface StopCSVRecord extends CSVRecord {
+    stop_id: string,
+    stop_code: string,
+    stop_name: string,
+    tts_stop_name: string,
+    stop_desc: string,
+    stop_lat: string,
+    stop_lon: string,
+    zone_id: string,
+    stop_url: string,
+    location_type: string,
+    parent_station: string,
+    stop_timezone: string,
+    wheelchair_boarding: string,
+    level_id: string,
+    platform_code: string
 }
 
 export async function realtime(): Promise<FeedMessage<TripUpdateEntity>> {
@@ -101,6 +125,24 @@ export class ScheduleManager {
         }
     }
 
+    public async ReadData(): Promise<void> {
+        try {
+            const cacheDirectoryNames = await listDirectory(this.cachePath);
+            if (cacheDirectoryNames.length == 0) return;
+
+            const cacheDirectoryName = cacheDirectoryNames[0] as string; 
+            
+            const stops = await readCSVFile<StopCSVRecord>(
+                path.resolve(this.cachePath, cacheDirectoryName, 'stops.txt')
+            );
+
+            console.log(stops);
+        }
+        catch (err) {
+            console.error(err);
+        }
+    } 
+
     public async update(): Promise<void> {
         try {
             // Ensure cache directory exists
@@ -112,7 +154,10 @@ export class ScheduleManager {
             const timestamp = new Date().toISOString().replaceAll(':', '_');
             const zipData = await httpGetBinary(this.url);
             const zip = new AdmZip(zipData);
-            await zip.extractAllToAsync(`${this.cachePath}${timestamp}`, true);
+            await zip.extractAllToAsync(
+                path.resolve(this.cachePath, timestamp), 
+                true
+            );
 
             // TODO: Proper log system
             console.log("Schedule updated");
@@ -137,7 +182,7 @@ export class ScheduleManager {
 
         // Remove expired or invalid items in parallel
         const removeDirectoryPromises = flaggedForRemove.map((name) => {
-            return removeDirectory(`${this.cachePath}${name}`);
+            return removeDirectory(path.resolve(this.cachePath, name));
         });
 
         await Promise.all(removeDirectoryPromises);

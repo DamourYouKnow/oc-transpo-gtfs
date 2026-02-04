@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 
-export function readFile(path: string): Promise<string> {
+export function readFile(path: fs.PathLike): Promise<string> {
     return new Promise((resolve, reject) => {
         fs.readFile(path, (err, data) => {
             if (err) {
@@ -13,7 +13,7 @@ export function readFile(path: string): Promise<string> {
     });
 }
 
-export function listDirectory(path: string): Promise<string[]> {
+export function listDirectory(path: fs.PathLike): Promise<string[]> {
     return new Promise<string[]>((resolve, reject) => {
         fs.readdir(path, (err, data) => {
             if (err) {
@@ -26,7 +26,7 @@ export function listDirectory(path: string): Promise<string[]> {
     });
 }
 
-export function createDirectory(path: string): Promise<void> {
+export function createDirectory(path: fs.PathLike): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         fs.mkdir(path, { recursive: true }, (err) => {
             if (err) {
@@ -39,7 +39,7 @@ export function createDirectory(path: string): Promise<void> {
     })
 }
 
-export function removeDirectory(path: string): Promise<void> {
+export function removeDirectory(path: fs.PathLike): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         fs.rm(path, { recursive: true, force: true }, (err) => {
             if (err) {

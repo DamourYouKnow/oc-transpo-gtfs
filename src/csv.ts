@@ -1,61 +1,48 @@
+import { PathLike } from 'fs';
 import { readFile } from './utils';
 
+export type CSVRecord = object;
 
-// TODO: Move to GTFS
-interface StopCSVRecord {
-    stop_id: number,
-    stop_code: string
-}
-
-
-export function readCSVFile() {
-
-}
-
-
-type CSVCasts<TCSVRecord> = { 
+type CSVCasts<TCSVRecord extends CSVRecord> = { 
     [TKey in keyof TCSVRecord]?: (columnName: string) => TCSVRecord[TKey] 
 };
 
+export function readCSVFile<TCSVRecord extends CSVRecord>(
+    path: PathLike,
+    casts?: CSVCasts<TCSVRecord>
+): Promise<TCSVRecord[]> {
+    return new Promise<TCSVRecord[]>((resolve, reject) => {
+        readFile(path).then((data) => {
+            resolve(parse(data, casts));
+        }).catch(reject);
+    });
+}
 
-export function parse<TCSVRecord extends object>(
+export function parse<TCSVRecord extends CSVRecord>(
     string: string,
-    casts: CSVCasts<TCSVRecord>
+    casts?: CSVCasts<TCSVRecord>
 ): TCSVRecord[] {
     // TODO: Add no header option?
     const rows = string.split('\n');
 
     const header = rows[0] as string;
-    const columnNames = header.split(',');
+    const columnNames = header.split(',').map((columnName) => {
+        return columnName.replaceAll('\r', '');
+    });
 
-    return rows.map((row) => {
+    const records = rows.map((row) => {
         const values = row.split(',');
-        const record: TCSVRecord = { } as TCSVRecord;
+        const record = { } as Record<string, unknown>;
 
         columnNames.forEach((columnName, index) => {
-            const cast = casts[columnName];
-            record[columnName] = values[index];
+            const cast = casts ? casts[columnName as keyof TCSVRecord] : null;
+            const valueString = values[index]?.replaceAll('\r', '') as string;
+            const value = cast ? cast(valueString) : valueString;
+            record[columnName] = value;
         });
 
-        return record;
+        return record as TCSVRecord;
     });
+
+    return records;
 }
-
-
-function test() {
-    parse<StopCSVRecord>(
-        "",
-        {
-            'stop_id': (value: string) => Number(value),
-            'stop_code': (value: string) => value
-        }
-    );
-
-
-    const test: { [key: string ]: number } = {
-        'd': 23
-    };
-}
-
-
-
