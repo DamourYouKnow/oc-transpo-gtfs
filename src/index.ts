@@ -1,5 +1,7 @@
 import * as path from 'path';
 
+import Logger from './logger.ts';
+
 import { 
     realtime, 
     ScheduleManager
@@ -14,6 +16,9 @@ const rootDirectory = path.resolve(__dirname, "../");
 test();
 
 async function test() {
+    new Logger(path.resolve(rootDirectory, 'logs'));
+    Logger.logInfo("Application start");
+
     // Test manual update
     const scheduleUpdater = new ScheduleManager(
         scheduleUrl,
@@ -52,7 +57,7 @@ async function test() {
         return [...acc, ...append];
     }, []);
 
-    console.log(JSON.stringify(routeUpdates, null, 2));
+    //console.log(JSON.stringify(routeUpdates, null, 2));
 }
 
 

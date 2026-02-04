@@ -3,16 +3,11 @@ import * as path from 'path';
 import AdmZip from 'adm-zip';
 import { decode } from './protobuffer';
 
-import { 
-    httpGetBinary,
-    createDirectory, 
-    listDirectory,
-    parseISODate, 
-    removeDirectory
-} from './utils';
-
+import Logger from './logger';
+import * as utils from './utils';
 import { CSVRecord, readCSVFile } from './csv';
 import TaskScheduler from './task-scheduler';
+import { time } from 'console';
 
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
@@ -113,62 +108,71 @@ export class ScheduleManager {
     ) {
         this.url = url;
         this.cachePath = cachePath;
-        this.scheduler = new TaskScheduler(updateCheckFrequency, this.update);
+        this.scheduler = new TaskScheduler(
+            updateCheckFrequency, 
+            this.update.bind(this)
+        );
     }
 
     public async start() {
+        Logger.logInfo("Schedule manager started");
         await this.scheduler.start();
     }
 
     public async ReadData(): Promise<void> {
         try {
-            const cacheDirectoryNames = await listDirectory(this.cachePath);
+            const cacheDirectoryNames = await utils.listDirectory(
+                this.cachePath
+            );
+
             if (cacheDirectoryNames.length == 0) return;
 
             const cacheDirectoryName = cacheDirectoryNames[0] as string; 
-            
-            const stops = await readCSVFile<StopCSVRecord>(
-                path.resolve(this.cachePath, cacheDirectoryName, 'stops.txt')
+            const filepath = path.resolve(
+                this.cachePath, 
+                cacheDirectoryName, 
+                'stops.txt'
             );
 
-            console.log(stops);
+            const stops = await readCSVFile<StopCSVRecord>(filepath);
+
+            Logger.logInfo(`${cacheDirectoryName} read from cache`);
         }
         catch (err) {
-            console.error(err);
+            Logger.logError("Failed to read from cache", err);
         }
     } 
 
     public async update(): Promise<void> {
         try {
             // Ensure cache directory exists
-            await createDirectory(this.cachePath);
+            await utils.createDirectory(this.cachePath);
 
             const updateRequired = await this.checkForUpdate();
             if (!updateRequired) return;
 
-            const timestamp = new Date().toISOString().replaceAll(':', '_');
-            const zipData = await httpGetBinary(this.url);
+            const timestamp = utils.ISOTimestamp(true);
+            const zipPath = path.resolve(this.cachePath, timestamp);
+
+            const zipData = await utils.httpGetBinary(this.url);
             const zip = new AdmZip(zipData);
-            await zip.extractAllToAsync(
-                path.resolve(this.cachePath, timestamp), 
-                true
-            );
+            await zip.extractAllToAsync(zipPath, true);
 
             // TODO: Proper log system
-            console.log("Schedule updated");
+            Logger.logInfo(`Schedule cache updated: ${zipPath}`);
         }
         catch (err) {
-            console.error(err);
+            Logger.logError("Schedule cache update failed", err);
         }
     }
 
     private async checkForUpdate(): Promise<boolean> {
-        const names = await listDirectory(this.cachePath)
+        const names = await utils.listDirectory(this.cachePath)
         if (names.length == 0) return true;
         
         // Identify expired or invalid items
         const flaggedForRemove = names.filter((name) => {
-            const date = parseISODate(name);
+            const date = utils.parseISODate(name);
             if (!date) return true;
 
             const delta = Date.now() - date.getTime();
@@ -177,7 +181,7 @@ export class ScheduleManager {
 
         // Remove expired or invalid items in parallel
         const removeDirectoryPromises = flaggedForRemove.map((name) => {
-            return removeDirectory(path.resolve(this.cachePath, name));
+            return utils.removeDirectory(path.resolve(this.cachePath, name));
         });
 
         await Promise.all(removeDirectoryPromises);
@@ -193,7 +197,7 @@ async function getGTFS(url: string): Promise<Buffer> {
         throw Error("OC_TRANSPO_APP_KEY environment variable missing");
     }
 
-    return await httpGetBinary(url, {
+    return await utils.httpGetBinary(url, {
         'Ocp-Apim-Subscription-Key': appKey
     });
 };

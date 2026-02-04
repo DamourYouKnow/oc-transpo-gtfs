@@ -77,6 +77,13 @@ export function httpGetBinary(
     });
 }
 
+export function ISOTimestamp(fileSafe: boolean=false): string {
+    const now = new Date(Date.now());
+    const timestamp = now.toISOString();
+
+    return fileSafe ? timestamp.replaceAll(':', '_') : timestamp;
+}
+
 export function parseISODate(isoString: string): Date | null {
     isoString = isoString.replaceAll('_', ':')
     const date = new Date(isoString);

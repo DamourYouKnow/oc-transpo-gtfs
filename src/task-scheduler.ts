@@ -14,12 +14,12 @@ export default class TaskScheduler {
     }
     
     public async start() {
+        // Run initial task executions.
+        await this.execute();
+
         this.timeout = setInterval(() => {
             this.execute();
         }, this.executeFrequency);
-
-        // Run initial task executions.
-        await this.execute();
     }
 
     public stop() {
