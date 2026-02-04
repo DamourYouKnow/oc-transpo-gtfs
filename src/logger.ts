@@ -22,7 +22,7 @@ export default class Logger {
         this.logPath = logPath;
         this.logFile = path.resolve(
             this.logPath, 
-            `${utils.ISOTimestamp(true)}.txt`
+            `${utils.ISOTimestamp(true)}.log`
         );
         Logger.instance = this;
     }
