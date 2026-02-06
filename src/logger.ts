@@ -27,6 +27,11 @@ export default class Logger {
         Logger.instance = this;
     }
 
+    public async start() {
+        // Ensure log directory exists.
+        await utils.createDirectory(this.logPath);
+    }
+
     private log(
         logLevel: LogLevel='Info',
         message: string, 

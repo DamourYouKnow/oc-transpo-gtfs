@@ -17,7 +17,8 @@ const rootDirectory = path.resolve(__dirname, "../");
 test();
 
 async function test() {
-    new Logger(path.resolve(rootDirectory, 'logs'));
+    const logger = new Logger(path.resolve(rootDirectory, 'logs'));
+    await logger.start();
     Logger.logInfo("Application start");
 
     // Test manual update
