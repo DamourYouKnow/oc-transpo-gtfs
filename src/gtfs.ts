@@ -111,7 +111,7 @@ interface CalendarCSVRecord extends CSVRecord {
     end_date: string
 }
 
-interface FeedInfoRecord extends CSVRecord {
+interface FeedInfoCSVRecord extends CSVRecord {
     feed_publisher_name: string,
     feed_publisher_url: string,
     feed_lang: string,
@@ -221,11 +221,39 @@ export async function vehiclePositions(): Promise<VehiclePositionMessage> {
     return json as VehiclePositionMessage;
 }
 
+type ScheduleCacheTypes = {
+    agency: AgencyCSVRecord,
+    calendar_dates: CalendarDateCSVRecord,
+    calendar: CalendarCSVRecord
+    feed_info: FeedInfoCSVRecord,
+    routes: RouteCSVRecord,
+    shapes: ShapeCSVRecord,
+    stop_times: StopTimeCSVRecord,
+    stops: StopCSVRecord,
+    trips: TripCSVRecord
+}
+
+type ScheduleCache = { 
+    [key in keyof ScheduleCacheTypes]: ScheduleCacheTypes[key][]
+};
+
 export class ScheduleManager {
     private url: string;
     private cachePath: string;
     private updateFrequency = 24 * 60 * 60 * 1000; // 24 hours
     private scheduler: TaskScheduler;
+    
+    private cache: ScheduleCache = {
+        agency: [],
+        calendar_dates: [],
+        calendar: [],
+        feed_info: [],
+        routes: [],
+        shapes: [],
+        stop_times: [],
+        stops: [],
+        trips: []
+    };
 
     public constructor(
         url: string, 
@@ -245,30 +273,6 @@ export class ScheduleManager {
         await this.scheduler.start();
     }
 
-    public async ReadData(): Promise<void> {
-        try {
-            const cacheDirectoryNames = await utils.listDirectory(
-                this.cachePath
-            );
-
-            if (cacheDirectoryNames.length == 0) return;
-
-            const cacheDirectoryName = cacheDirectoryNames[0] as string; 
-            const filepath = path.resolve(
-                this.cachePath, 
-                cacheDirectoryName, 
-                'stops.txt'
-            );
-
-            const stops = await readCSVFile<StopCSVRecord>(filepath);
-
-            Logger.logInfo(`Schedule ${cacheDirectoryName} read from cache`);
-        }
-        catch (err) {
-            Logger.logError("Failed to read from cache", err);
-        }
-    } 
-
     public async update(): Promise<void> {
         try {
             // Ensure cache directory exists
@@ -284,8 +288,9 @@ export class ScheduleManager {
             const zip = new AdmZip(zipData);
             await zip.extractAllToAsync(zipPath, true);
 
-            // TODO: Proper log system
-            Logger.logInfo(`Schedule cache updated: ${zipPath}`);
+            Logger.logInfo(`Schedule file system cache updated: ${zipPath}`);
+
+            await this.cacheData();
         }
         catch (err) {
             Logger.logError("Schedule cache update failed", err);
@@ -315,6 +320,74 @@ export class ScheduleManager {
         // Update required if all items are removed
         return flaggedForRemove.length >= names.length;
     }
+
+    private async cacheData(): Promise<void> {
+        try {
+            const cacheDirectoryNames = await utils.listDirectory(
+                this.cachePath
+            );
+
+            if (cacheDirectoryNames.length == 0) {
+                throw Error("No schedule file cache directory");
+            };
+
+            const cacheDirectoryName = cacheDirectoryNames[0] as string;
+
+            const scheduleTypes = Object.keys(this.cache) as ScheduleType[];
+
+            const readData = async <TCSVRecord extends CSVRecord>(
+                scheduleType: ScheduleType,
+            ): Promise<TCSVRecord[]> => {     
+                const file = path.resolve(
+                    this.cachePath, 
+                    cacheDirectoryName, 
+                    `${scheduleType}.txt`
+                );
+
+                const csvData = readCSVFile<TCSVRecord>(file);
+                await Logger.logInfo(`Schedule data ${path} cached into memory`);
+                return csvData;
+            }
+            
+            const promises = scheduleTypes.map((scheduleType) => {
+                Object.keys(this.cache) as ScheduleType[]
+            });
+        
+
+
+            const promises: {
+                [TKey in keyof ScheduleCache]: Promise<ScheduleCache[TKey]>
+            } = { 
+                agency: this.readCacheData("", 'agency'),
+                calendar_dates: [],
+                calendar: [],
+                feed_info: [],
+                routes: [],
+                shapes: [],
+                stop_times: [],
+                stops: [],
+                trips
+            };
+
+
+
+
+            Logger.logInfo(`Schedule ${cacheDirectoryName} cached into memory`);
+        }
+        catch (err) {
+            Logger.logError("Failed to cache schedule into memory", err);
+        }
+    }
+
+    private async readCacheData<TCSVRecord extends CSVRecord>(
+        scheduleDirectory: string,
+        scheduleType: ScheduleType
+    ): Promise<void> {
+        const file = path.resolve(scheduleDirectory, `${scheduleType}.txt`);
+        const csvData = readCSVFile<TCSVRecord>(file);
+        this.cache[scheduleType] = csvData;
+        Logger.logInfo(`Schedule data ${file} cached into memory`);
+    } 
 }
 
 async function getGTFS(url: string): Promise<Buffer> {

@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import Logger from './logger';
 
 export function readFile(path: fs.PathLike): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -50,6 +51,34 @@ export function removeDirectory(path: fs.PathLike): Promise<void> {
             }
         });
     }) 
+}
+
+
+
+type PromiseMap<TKey, TResult> = {[key in keyof TKey]: Promise<TResult>};
+type PromiseMapResult<TKey, TResult> = {[key in keyof TKey]: TResult }; 
+
+export function mappedPromises<TKey, TResult>(
+    promiseMap: PromiseMap<TKey, TResult>
+): Promise<PromiseMapResult<TKey, TResult>> {
+    const promises = Object.values(promiseMap) as Promise<TResult>[];
+    
+    return new Promise<PromiseMapResult<TKey, TResult>>((resolve, reject) => {
+        
+    });
+}
+
+async function add(a: number, b: number) {
+    return await a + b; 
+}
+
+async function test() {
+    const results = await mappedPromises<string, number>({
+        'promiseA': add(1, 1),
+        'promiseB': add(-1, 1)
+    });
+
+    const test = results.promiseA;
 }
 
 export function httpGetBinary(

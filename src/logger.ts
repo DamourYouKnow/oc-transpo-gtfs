@@ -83,15 +83,15 @@ export default class Logger {
         }
     }
 
-    public static logInfo(message: string) {
-        Logger.log('Info', message);
+    public static async logInfo(message: string) {
+        await Logger.log('Info', message);
     }
 
-    public static logWarning(message: string) {
-        Logger.log('Warning', message);
+    public static async logWarning(message: string) {
+        await Logger.log('Warning', message);
     }
 
-    public static logError(message: string, err?: unknown) {
-        Logger.log('Error', message, err);
+    public static async logError(message: string, err?: unknown) {
+        await Logger.log('Error', message, err);
     }
 }
