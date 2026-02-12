@@ -29,9 +29,7 @@ async function test() {
     );
     await scheduleUpdater.start();
 
-    // Test CSV loading
-    // TODO: Move into ScheduleManager
-    await scheduleUpdater.cacheData();
+    console.log(scheduleUpdater.data?.agency);
 
     const updates = (await tripUpdates()).entity;
     
@@ -59,7 +57,7 @@ async function test() {
 
     const positions = (await vehiclePositions()).entity
 
-    console.log(JSON.stringify(positions, null, 2));
+    //console.log(JSON.stringify(positions, null, 2));
 }
 
 

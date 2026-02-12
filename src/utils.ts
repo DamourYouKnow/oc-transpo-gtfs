@@ -53,7 +53,7 @@ export function removeDirectory(path: fs.PathLike): Promise<void> {
     }) 
 }
 
-type RecordKey = string | number | symbol;
+export type RecordKey = string | number | symbol;
 
 export function remap<TKey extends RecordKey, TValue, TResult>(
     obj: Record<TKey, TValue>,

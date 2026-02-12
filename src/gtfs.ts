@@ -221,7 +221,7 @@ export async function vehiclePositions(): Promise<VehiclePositionMessage> {
     return json as VehiclePositionMessage;
 }
 
-type ScheduleCacheTypes = {
+type ScheduleDataTypes = {
     agency: AgencyCSVRecord,
     calendar_dates: CalendarDateCSVRecord,
     calendar: CalendarCSVRecord
@@ -234,7 +234,7 @@ type ScheduleCacheTypes = {
 }
 
 type ScheduleCache = { 
-    [key in keyof ScheduleCacheTypes]: ScheduleCacheTypes[key][]
+    [key in keyof ScheduleDataTypes]: ScheduleDataTypes[key][]
 };
 
 export class ScheduleManager {
@@ -243,17 +243,7 @@ export class ScheduleManager {
     private updateFrequency = 24 * 60 * 60 * 1000; // 24 hours
     private scheduler: TaskScheduler;
     
-    private cache: ScheduleCache = {
-        agency: [],
-        calendar_dates: [],
-        calendar: [],
-        feed_info: [],
-        routes: [],
-        shapes: [],
-        stop_times: [],
-        stops: [],
-        trips: []
-    };
+    public data: ScheduleCache | null = null;
 
     public constructor(
         url: string, 
@@ -279,18 +269,22 @@ export class ScheduleManager {
             await utils.createDirectory(this.cachePath);
 
             const updateRequired = await this.checkForUpdate();
-            if (!updateRequired) return;
+            if (updateRequired) {
+                const timestamp = utils.ISOTimestamp(true);
+                const zipPath = path.resolve(this.cachePath, timestamp);
 
-            const timestamp = utils.ISOTimestamp(true);
-            const zipPath = path.resolve(this.cachePath, timestamp);
+                const zipData = await utils.httpGetBinary(this.url);
+                const zip = new AdmZip(zipData);
+                await zip.extractAllToAsync(zipPath, true);
 
-            const zipData = await utils.httpGetBinary(this.url);
-            const zip = new AdmZip(zipData);
-            await zip.extractAllToAsync(zipPath, true);
+                Logger.logInfo(`Schedule file system cache updated: ${zipPath}`);
 
-            Logger.logInfo(`Schedule file system cache updated: ${zipPath}`);
+                await this.cacheData();
+            }
 
-            await this.cacheData();
+            if (!this.data) {
+                await this.cacheData();
+            }
         }
         catch (err) {
             Logger.logError("Schedule cache update failed", err);
@@ -333,8 +327,6 @@ export class ScheduleManager {
 
             const cacheDirectoryName = cacheDirectoryNames[0] as string;
 
-            const scheduleTypes = Object.keys(this.cache) as ScheduleType[];
-
             const readData = async <TCSVRecord extends CSVRecord>(
                 scheduleType: ScheduleType,
             ): Promise<TCSVRecord[]> => {     
@@ -345,32 +337,26 @@ export class ScheduleManager {
                 );
 
                 const csvData = readCSVFile<TCSVRecord>(file);
-                await Logger.logInfo(`Schedule data ${path} cached into memory`);
+                await Logger.logInfo(`Schedule data ${file} cached into memory`);
                 return csvData;
             }
             
-            const promises = scheduleTypes.map((scheduleType) => {
-                Object.keys(this.cache) as ScheduleType[]
-            });
-        
-
-
             const promises: {
-                [TKey in keyof ScheduleCache]: Promise<ScheduleCache[TKey]>
+                [TKey in keyof ScheduleCache]: Promise<CSVRecord[]>
             } = { 
-                agency: this.readCacheData("", 'agency'),
-                calendar_dates: [],
-                calendar: [],
-                feed_info: [],
-                routes: [],
-                shapes: [],
-                stop_times: [],
-                stops: [],
-                trips
+                agency: readData('agency'),
+                calendar_dates: readData('calendar_dates'),
+                calendar: readData('calendar'),
+                feed_info:  readData('feed_info'),
+                routes: readData('routes'),
+                shapes: readData('shapes'),
+                stop_times: readData('stop_times'),
+                stops: readData('stops'),
+                trips: readData('trips')
             };
 
-
-
+            const data = await utils.mappedPromises(promises);
+            this.data = data as ScheduleCache;
 
             Logger.logInfo(`Schedule ${cacheDirectoryName} cached into memory`);
         }
@@ -378,16 +364,6 @@ export class ScheduleManager {
             Logger.logError("Failed to cache schedule into memory", err);
         }
     }
-
-    private async readCacheData<TCSVRecord extends CSVRecord>(
-        scheduleDirectory: string,
-        scheduleType: ScheduleType
-    ): Promise<void> {
-        const file = path.resolve(scheduleDirectory, `${scheduleType}.txt`);
-        const csvData = readCSVFile<TCSVRecord>(file);
-        this.cache[scheduleType] = csvData;
-        Logger.logInfo(`Schedule data ${file} cached into memory`);
-    } 
 }
 
 async function getGTFS(url: string): Promise<Buffer> {

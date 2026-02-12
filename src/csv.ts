@@ -1,7 +1,7 @@
 import { PathLike } from 'fs';
-import { readFile } from './utils';
+import { readFile, RecordKey } from './utils';
 
-export type CSVRecord = object;
+export type CSVRecord = Readonly<Record<RecordKey, unknown>>;
 
 type CSVCasts<TCSVRecord extends CSVRecord> = { 
     [TKey in keyof TCSVRecord]?: (columnName: string) => TCSVRecord[TKey] 
@@ -23,14 +23,14 @@ export function parse<TCSVRecord extends CSVRecord>(
     casts?: CSVCasts<TCSVRecord>
 ): TCSVRecord[] {
     // TODO: Add no header option?
-    const rows = string.split('\n');
-
+    let rows = string.split('\n');
+    rows = rows.slice(0, rows.length - 1);
     const header = rows[0] as string;
     const columnNames = header.split(',').map((columnName) => {
         return columnName.replaceAll('\r', '');
     });
 
-    const records = rows.map((row) => {
+    const records = rows.slice(1).map((row) => {
         const values = row.split(',');
         const record = { } as Record<string, unknown>;
 
