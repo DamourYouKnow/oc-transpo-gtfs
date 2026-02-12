@@ -336,7 +336,7 @@ export class ScheduleManager {
                     `${scheduleType}.txt`
                 );
 
-                const csvData = readCSVFile<TCSVRecord>(file);
+                const csvData = await readCSVFile<TCSVRecord>(file);
                 await Logger.logInfo(`Schedule data ${file} cached into memory`);
                 return csvData;
             }
