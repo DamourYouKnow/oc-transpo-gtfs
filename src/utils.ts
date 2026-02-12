@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import Logger from './logger';
 
 export function readFile(path: fs.PathLike): Promise<string> {
     return new Promise((resolve, reject) => {

@@ -18,49 +18,54 @@ type ScheduleRelationship = "SCHEDULED" | "ADDED" | "UNSCHEDULED" | "CANCELED"
         | "REPLACEMENT" | "DUPLICATED" | "NEW" | "DELETED";
 
 export interface FeedMessage<TFeedEntity extends FeedEntity> {
-    header: FeedHeader,
-    entity: TFeedEntity[],
+    readonly header: FeedHeader,
+    readonly entity: TFeedEntity[],
 }
 
 interface FeedHeader {
-    gtfsRealtimeVersion: string,
-    incrementality: 'FULL_DATASET' | 'DIFFERENTIAL',
-    timestamp: string, // uint64
-    feed_version: string | undefined
+    readonly gtfsRealtimeVersion: string,
+    readonly incrementality: 'FULL_DATASET' | 'DIFFERENTIAL',
+    readonly timestamp: string, // uint64
+    readonly feed_version: string | undefined
 }
 
 interface FeedEntity {
-    id: string,
-    is_deleted: boolean,
+    readonly id: string,
+    readonly is_deleted: boolean,
 }
 
-// Trip update
-// TODO: Merge into single nested interface
+interface Trip {
+    readonly tripId: string,
+    readonly startTime: string,
+    readonly startDate: string,
+    readonly scheduleRelationship: ScheduleRelationship,
+    readonly routeId: string
+}
+
 interface TripUpdateEntity extends FeedEntity {
-    tripUpdate: {
-        trip: {
-            tripId: string,
-            startTime: string,
-            startDate: string,
-            scheduleRelationship: ScheduleRelationship,
-            routeId: string
-        },
-        stopTimeUpdate:  {
-            stopSequence: number,
-            arrival: {
-                time: string
+    readonly tripUpdate: {
+        readonly trip: Trip,
+        readonly stopTimeUpdate:  {
+            readonly stopSequence: number,
+            readonly arrival: {
+                readonly time: string
             },
-            stopId: string,
-            scheduleRelationship: ScheduleRelationship
+            readonly stopId: string,
+            readonly scheduleRelationship: ScheduleRelationship
         }[]
     }
 }   
 
-
-// Vehicle position
-// TODO: Merge into single nested interface
 interface VehiclePositionEntity extends FeedEntity {
-    
+    readonly vehicle: {
+        readonly trip: Trip,
+        readonly position: {
+            readonly lattitude: number
+            readonly longitude: number
+            readonly bearing: number
+        },
+        readonly timestamp: string
+    }
 }
 
 // TODO: Better name for this type?
@@ -82,114 +87,114 @@ enum RouteType {
 
 // https://gtfs.org/documentation/schedule/reference/#agencytxt
 interface AgencyCSVRecord extends CSVRecord {
-    agency_id: string,
-    agency_name: string,
-    agency_url: string,
-    agency_timezone: string,
-    agency_lang?: string,
-    agency_phone?: string,
-    agency_fare_url?: string,
-    agency_email?: string
+    readonly agency_id: string,
+    readonly agency_name: string,
+    readonly agency_url: string,
+    readonly agency_timezone: string,
+    readonly agency_lang?: string,
+    readonly agency_phone?: string,
+    readonly agency_fare_url?: string,
+    readonly agency_email?: string
 }
 
 interface CalendarDateCSVRecord extends CSVRecord {
-    service_id: string,
-    date: string,
-    exception_type: string
+    readonly service_id: string,
+    readonly date: string,
+    readonly exception_type: string
 }
 
 interface CalendarCSVRecord extends CSVRecord {
-    service_id: string,
-    monday: string,
-    tuesday: string,
-    wednesday: string,
-    thursday: string,
-    friday: string,
-    saturday: string,
-    sunday: string,
-    start_date: string,
-    end_date: string
+    readonly service_id: string,
+    readonly monday: string,
+    readonly tuesday: string,
+    readonly wednesday: string,
+    readonly thursday: string,
+    readonly friday: string,
+    readonly saturday: string,
+    readonly sunday: string,
+    readonly start_date: string,
+    readonly end_date: string
 }
 
 interface FeedInfoCSVRecord extends CSVRecord {
-    feed_publisher_name: string,
-    feed_publisher_url: string,
-    feed_lang: string,
-    default_lang: string,
-    feed_start_date: string,
-    feed_end_date: string,
-    feed_version: string,
-    feed_contact_email: string,
-    feed_contact_url: string
+    readonly feed_publisher_name: string,
+    readonly feed_publisher_url: string,
+    readonly feed_lang: string,
+    readonly default_lang: string,
+    readonly feed_start_date: string,
+    readonly feed_end_date: string,
+    readonly feed_version: string,
+    readonly feed_contact_email: string,
+    readonly feed_contact_url: string
 }
 
 interface RouteCSVRecord extends CSVRecord {
-    route_id: string,
-    agency_id?: string,
-    route_short_name?: string,
-    route_long_name?: string,
-    route_desc?: string,
-    route_type: string,
-    route_url?: string,
-    route_color?: string,
-    route_text_color?: string,
-    route_sort_order?: string,
-    continuous_pickup?: string,
-    continuous_drop_off?: string,
-    network_id: string
+    readonly route_id: string,
+    readonly agency_id?: string,
+    readonly route_short_name?: string,
+    readonly route_long_name?: string,
+    readonly route_desc?: string,
+    readonly route_type: string,
+    readonly route_url?: string,
+    readonly route_color?: string,
+    readonly route_text_color?: string,
+    readonly route_sort_order?: string,
+    readonly continuous_pickup?: string,
+    readonly continuous_drop_off?: string,
+    readonly network_id: string
 }
 
 interface ShapeCSVRecord extends CSVRecord {
-    shape_id: string,
-    shape_pt_lat: string,
-    shape_pt_lon: string,
-    shape_pt_sequence: string,
-    shape_dist_traveled: string
+    readonly shape_id: string,
+    readonly shape_pt_lat: string,
+    readonly shape_pt_lon: string,
+    readonly shape_pt_sequence: string,
+    readonly shape_dist_traveled: string
 }
 
 interface StopTimeCSVRecord extends CSVRecord {
-    trip_id: string,
-    arrival_time?: string,
-    departure_time?: string,
-    stop_id?: string,
-    stop_sequence: string,
-    stop_headsign?: string,
-    pickup_type?: string,
-    drop_off_type?: string,
-    shape_dist_traveled?: string,
-    timepoint?: string
+    readonly trip_id: string,
+    readonly arrival_time?: string,
+    readonly departure_time?: string,
+    readonly stop_id?: string,
+    readonly stop_sequence: string,
+    readonly stop_headsign?: string,
+    readonly pickup_type?: string,
+    readonly drop_off_type?: string,
+    readonly shape_dist_traveled?: string,
+    readonly timepoint?: string
 }
 
 interface StopCSVRecord extends CSVRecord {
-    stop_id: string,
-    stop_code?: string,
-    stop_name: string,
-    tts_stop_name?: string,
-    stop_desc?: string,
-    stop_lat: string,
-    stop_lon: string,
-    zone_id?: string,
-    stop_url?: string,
-    location_type?: string,
-    parent_station?: string,
-    stop_timezone?: string,
-    wheelchair_boarding?: string,
-    level_id?: string,
-    platform_code?: string
+    readonly stop_id: string,
+    readonly stop_code?: string,
+    readonly stop_name: string,
+    readonly tts_stop_name?: string,
+    readonly stop_desc?: string,
+    readonly stop_lat: string,
+    readonly stop_lon: string,
+    readonly zone_id?: string,
+    readonly stop_url?: string,
+    readonly location_type?: string,
+    readonly parent_station?: string,
+    readonly stop_timezone?: string,
+    readonly wheelchair_boarding?: string,
+    readonly level_id?: string,
+    readonly platform_code?: string
 }
 
 interface TripCSVRecord extends CSVRecord {
-    route_id: string,
-    service_id: string,
-    trip_id: string,
-    trip_headsign?: string,
-    trip_short_name?: string,
-    direction_id?: string,
-    block_id?: string,
-    shape_id?: string,
-    wheelchair_accessible?: string,
-    bikes_allowed?: string,
-    cars_allowed?: string
+    readonly route_id: string,
+    readonly service_id: string,
+    readonly trip_id: string,
+    readonly trip_headsign?: string,
+    readonly trip_short_name?: string,
+    readonly direction_id?: string,
+    readonly block_id?: string,
+    readonly shape_id?: string,
+    readonly wheelchair_accessible?: string,
+    readonly bikes_allowed?: string,
+    readonly cars_allowed?: string
 }
 
 type TripUpdateMessage = Promise<FeedMessage<TripUpdateEntity>>;

@@ -1,7 +1,7 @@
 import { PathLike } from 'fs';
 import { readFile, RecordKey } from './utils';
 
-export type CSVRecord = Readonly<Record<RecordKey, unknown>>;
+export type CSVRecord =  Readonly<Record<RecordKey, unknown>>;
 
 type CSVCasts<TCSVRecord extends CSVRecord> = { 
     [TKey in keyof TCSVRecord]?: (columnName: string) => TCSVRecord[TKey] 

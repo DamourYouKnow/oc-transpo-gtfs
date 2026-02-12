@@ -29,8 +29,6 @@ async function test() {
     );
     await scheduleUpdater.start();
 
-    console.log(scheduleUpdater.data?.agency);
-
     const updates = (await tripUpdates()).entity;
     
     const routeUpdates = updates.filter((update) => {
@@ -56,8 +54,6 @@ async function test() {
     }, []);
 
     const positions = (await vehiclePositions()).entity
-
-    //console.log(JSON.stringify(positions, null, 2));
 }
 
 
