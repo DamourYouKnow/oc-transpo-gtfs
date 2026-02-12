@@ -46,7 +46,7 @@ async function test() {
         const append = stopTimes.map((stopTime) => {
             return {
                 stopId: stopTime.stopId,
-                arrival: datetime(stopTime.arrival.time)
+                arrival: datetime(stopTime?.arrival?.time)
             };
         });
 

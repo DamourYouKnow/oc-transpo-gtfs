@@ -284,7 +284,7 @@ export class ScheduleManager {
                 const zip = new AdmZip(zipData);
                 await zip.extractAllToAsync(zipPath, true);
 
-                Logger.logInfo(`Schedule file system cache updated: ${zipPath}`);
+                Logger.logInfo(`Schedule file downloaded to cache: ${zipPath}`);
 
                 await this.cacheData();
             }

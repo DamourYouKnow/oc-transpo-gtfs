@@ -11,6 +11,7 @@ export default class Logger {
     private static instance: Logger | null = null;
     private logPath: string;
     private logFile: string;
+    private labelOffset: number;
 
     private static console: { 
         [key in LogLevel]: (...data: any[]) => void 
@@ -23,9 +24,9 @@ export default class Logger {
 
     private static levelLabels: {[key in LogLevel]: string} = {
         Info: 'Info',
-        Warning: 'Warn',
-        Error: 'Err ',
-        Console: 'Cons'
+        Warning: 'Warning',
+        Error: 'Error',
+        Console: 'Console'
     }
 
     private static levelColors: {[key in LogLevel]?: Color } = {
@@ -36,10 +37,16 @@ export default class Logger {
 
     public constructor(logPath: string) {
         this.logPath = logPath;
+        
         this.logFile = path.resolve(
             this.logPath, 
             `${utils.ISOTimestamp(true)}.log`
         );
+
+        this.labelOffset = Math.max(
+            ...Object.values(Logger.levelLabels).map((label) => label.length)
+        )
+
         Logger.instance = this;
     }
 
@@ -54,10 +61,10 @@ export default class Logger {
         err?: unknown
     ): Promise<void> {
         const timestamp = utils.ISOTimestamp();
-        const levelLabel = Logger.levelLabels[logLevel]
+        const levelLabel = Logger.levelLabels[logLevel].padStart(this.labelOffset);
         const levelColor = Logger.levelColors[logLevel];
 
-        let formattedMessage = `${timestamp} | ${levelLabel} | ${message}`;
+        let formattedMessage = `${levelLabel} | ${timestamp} | ${message}`;
         Logger.console[logLevel](ansiColor(formattedMessage, levelColor));
 
         if (logLevel == 'Console') return;
