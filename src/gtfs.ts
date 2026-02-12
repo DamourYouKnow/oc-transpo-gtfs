@@ -270,6 +270,8 @@ export class ScheduleManager {
 
     public async update(): Promise<void> {
         try {
+            Logger.logConsole("Executing static schedule update check");
+
             // Ensure cache directory exists
             await utils.createDirectory(this.cachePath);
 
