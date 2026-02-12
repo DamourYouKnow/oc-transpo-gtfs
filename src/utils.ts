@@ -53,32 +53,43 @@ export function removeDirectory(path: fs.PathLike): Promise<void> {
     }) 
 }
 
+type RecordKey = string | number | symbol;
 
+export function remap<TKey extends RecordKey, TValue, TResult>(
+    obj: Record<TKey, TValue>,
+    func: (value: TValue) => TResult 
+): Record<TKey, TResult> {
+    const result: Record<string, TResult> = {};
 
-type PromiseMap<TKey, TResult> = {[key in keyof TKey]: Promise<TResult>};
-type PromiseMapResult<TKey, TResult> = {[key in keyof TKey]: TResult }; 
+    for (const key in obj) {
+        result[key] = func(obj[key] as TValue);
+    }
 
-export function mappedPromises<TKey, TResult>(
-    promiseMap: PromiseMap<TKey, TResult>
-): Promise<PromiseMapResult<TKey, TResult>> {
+    return result as Record<TKey, TResult>;
+}
+
+export function mappedPromises<TKey extends RecordKey, TResult>(
+    promiseMap: Record<TKey, Promise<TResult>>
+): Promise<Record<TKey, TResult>> {
     const promises = Object.values(promiseMap) as Promise<TResult>[];
+    const keys = Object.keys(promiseMap);
     
-    return new Promise<PromiseMapResult<TKey, TResult>>((resolve, reject) => {
-        
+    return new Promise<Record<TKey, TResult>>((resolve, reject) => {
+        Promise.all(promises).then((results) => {
+            const resultMap: Record<string, TResult> = {};
+
+            for (let index = 0; index < results.length; index++) {
+                const key = keys[index] as string;
+                resultMap[key] = results[index] as TResult;
+            }
+
+            resolve(resultMap as Record<TKey, TResult>);
+        }).catch(reject);
     });
 }
 
-async function add(a: number, b: number) {
+async function add(a: number, b: number): Promise<number> {
     return await a + b; 
-}
-
-async function test() {
-    const results = await mappedPromises<string, number>({
-        'promiseA': add(1, 1),
-        'promiseB': add(-1, 1)
-    });
-
-    const test = results.promiseA;
 }
 
 export function httpGetBinary(
