@@ -17,6 +17,7 @@ type StopID = string;
 type StopCode = string;
 type RouteID = string;
 type TripID = string;
+type ServiceID = string;
 
 // https://gtfs.org/documentation/realtime/reference/
 type ScheduleRelationship = "SCHEDULED" | "ADDED" | "UNSCHEDULED" | "CANCELED"
@@ -261,6 +262,7 @@ interface Route {
 interface Trip {
     readonly id: TripID,
     readonly route: RouteID,
+    readonly headsign: string | null
 }
 
 interface Position {
@@ -274,18 +276,73 @@ interface StopSchedule {
 }
 
 interface StopTime {
-    arrival: Date,
-    departure: Date
+    stop: StopID,
+    route: RouteID,
+    trip: TripID,
+    arrival: Date | null,
+    departure: Date | null,
+    realtime: boolean
 }
 
-class StopSchedules {
+type ServiceDays = [
+    boolean, // Sunday
+    boolean, // Monday
+    boolean, // Tuesday
+    boolean, // Wednesday
+    boolean, // Thursday
+    boolean, // Friday
+    boolean  // Saturday
+];
+
+interface Service {
+    id: ServiceID,
+    startTime: Date,
+    endTime: Date,
+    days: ServiceDays
+}
+
+interface FeedInfo {
+    startTime: Date,
+    endTime: Date
+}
+
+interface Agency {
+    name: string,
+    timezone: string
+}
+
+class GTFSFeed {
+    private agency: Agency;
+    private info: FeedInfo;
+    private services = new Set<Service>();
     private stops = new Map<StopID, Stop>();
     private stopCodes = new Map<StopCode, StopID>();
     private routes = new Map<RouteID, Route>();
     private trips = new Map<TripID, Trip>();
     private schedules = new Map<StopID, StopSchedule>();
 
-    public constructor(schedule: ScheduleCache) {
+    public constructor(schedule: ScheduleCache, time: Date) {
+        // Load agency and feed info
+        const agency = schedule.agency[0];
+        if (!agency) {
+            throw Error("No agency in static schedule");
+        }
+
+        this.agency = {
+            name: agency.agency_name,
+            timezone: agency.agency_timezone
+        };
+            
+        const feedInfo = schedule.feed_info[0];
+        if (!feedInfo) {
+            throw Error("No feed information in static schedule");
+        }
+
+        this.info = {
+            startTime: this.dateStart(feedInfo.feed_start_date),
+            endTime: this.dateEnd(feedInfo.feed_end_date)
+        };
+
         // Load stop data
         for (const stop of schedule.stops) {
             this.stops.set(stop.stop_id, {
@@ -315,23 +372,68 @@ class StopSchedules {
         for (const trip of schedule.trips) {
             this.trips.set(trip.trip_id, {
                 id: trip.trip_id,
-                route: trip.route_id
+                route: trip.route_id,
+                headsign: trip.trip_headsign || null
             });
         }
 
+        // Load active services
+        time = utils.applyTimezone(time, this.agency.timezone);
+        const dayOfWeek = time.getDay();
+        const isActiveDay = (dayString: string): boolean => dayString == '1';
+
+        const services: Service[] = schedule.calendar.map((service) => {
+            return {
+                id: service.service_id,
+                startTime: this.dateStart(service.start_date),
+                endTime: this.dateEnd(service.end_date),
+                days: [
+                    isActiveDay(service.sunday),
+                    isActiveDay(service.monday),
+                    isActiveDay(service.tuesday),
+                    isActiveDay(service.wednesday),
+                    isActiveDay(service.thursday),
+                    isActiveDay(service.friday),
+                    isActiveDay(service.saturday)
+                ]
+            };
+        });
+
+        let activeServices = services.filter((service) => {
+            return service.days[dayOfWeek]
+        });
+
+        // TODO: Add and remove service exceptions in calendar_days
+
+        activeServices.forEach((service) => this.services.add(service));
+
         // Stop stop time data
         for (const stopTime of schedule.stop_times) {
-            const trip = stopTime.trip_id;
-            if (!trip) {
-                Logger.logWarning(`Trip ID ${trip} not found`);
+            const tripId = stopTime.trip_id;
+            if (!tripId) {
+                Logger.logWarning(`Trip ID ${tripId} not found`);
+                continue;
             }
 
-            const route = this.trips.get(trip);
+            const route = this.trips.get(tripId);
             if (!route) {
-                Logger.logWarning(`Route ID ${route} not found`);
+                Logger.logWarning(`Route for trip ${tripId} not found`);
+                continue;
             }
 
-            // TODO: Add to stop time list, create function for this
+            if (!stopTime.stop_id) {
+                Logger.logWarning(`Stop ID ${stopTime.stop_id} not found`);
+                continue;
+            }
+
+            this.updateStopTime({
+                stop: stopTime.stop_id,
+                route: route.id,
+                trip: stopTime.trip_id,
+                arrival: null, // TODO
+                departure: null, // TODO
+                realtime: false
+            });
         }
     }
     
@@ -347,6 +449,25 @@ class StopSchedules {
 
     public update(feed: TripUpdateMessage) {
         throw Error("Not implemented");
+    }
+
+    private updateStopTime(stopTime: StopTime) {
+        const stopSchedule = this.schedules.get(stopTime.stop);
+        if (!stopSchedule) {
+
+        }
+    }
+
+    private dateStart(datestring: string): Date {
+        datestring = `${utils.hyphenateYYYYMMDD(datestring)}T00:00:00`;
+        const date = new Date(datestring);
+        return utils.applyTimezone(date, this.agency.timezone);
+    }
+
+    private dateEnd(datestring: string): Date {
+        datestring = `${utils.hyphenateYYYYMMDD(datestring)}T24:00:00`;
+        const date = new Date(datestring);
+        return utils.applyTimezone(date, this.agency.timezone);
     }
 }
 

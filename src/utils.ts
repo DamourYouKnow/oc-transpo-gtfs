@@ -133,6 +133,41 @@ export function parseISODate(isoString: string): Date | null {
     return date;
 }
 
+export const supportedTimezones = new Set(Intl.supportedValuesOf("timeZone"));
+
+export function applyTimezone(date: Date, timezone: string): Date {
+    // TODO: Use library moment-js?
+    // TODO: Handle incorrect timezone?
+    return new Date(date.toLocaleString('en-US', {
+        timeZone: timezone
+    }));
+}
+
+export function applyTimestamp(
+    date: Date, 
+    timestamp: string,
+    timezone?: string
+): Date {
+    const modifiedDate = new Date(date.getTime());
+     
+    const hours = Number(timestamp.slice(0, 2));
+    const minutes = Number(timestamp.slice(3, 5));
+    const seconds = Number(timestamp.slice(6, 8));
+ 
+    modifiedDate.setHours(hours);
+    modifiedDate.setMinutes(minutes);
+    modifiedDate.setSeconds(seconds);
+ 
+    return timezone ? applyTimezone(modifiedDate, timezone) : modifiedDate;
+}
+
+export function hyphenateYYYYMMDD(dateString: string): string {
+    const year = dateString.slice(0, 4);
+    const month = dateString.slice(4, 6);
+    const day = dateString.slice(6, 8);
+    return `${year}-${month}-${day}`;
+}
+
 type MemoryUnitPrefix = 'B' | 'KB' | 'MB' | 'GB'; 
 
 export function heapMemoryUsage(
