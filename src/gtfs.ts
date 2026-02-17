@@ -13,6 +13,11 @@ const apiHost = "https://nextrip-public-api.azure-api.net"
 const tripUpdateRoot = `${apiHost}/octranspo/gtfs-rt-tp/beta/v1`;
 const vehiclePositionRoot = `${apiHost}/octranspo/gtfs-rt-vp/beta/v1`;
 
+type StopID = string;
+type StopCode = string;
+type RouteID = string;
+type TripID = string;
+
 // https://gtfs.org/documentation/realtime/reference/
 type ScheduleRelationship = "SCHEDULED" | "ADDED" | "UNSCHEDULED" | "CANCELED"
         | "REPLACEMENT" | "DUPLICATED" | "NEW" | "DELETED";
@@ -34,23 +39,23 @@ interface FeedEntity {
     readonly is_deleted: boolean,
 }
 
-interface Trip {
-    readonly tripId: string,
+interface TripEntity {
+    readonly tripId: TripID,
     readonly startTime: string,
     readonly startDate: string,
     readonly scheduleRelationship: ScheduleRelationship,
-    readonly routeId: string
+    readonly routeId: RouteID
 }
 
 interface TripUpdateEntity extends FeedEntity {
     readonly tripUpdate: {
-        readonly trip: Trip,
+        readonly trip: TripEntity,
         readonly stopTimeUpdate:  {
             readonly stopSequence: number,
             readonly arrival: {
                 readonly time: string
             },
-            readonly stopId: string,
+            readonly stopId: StopID,
             readonly scheduleRelationship: ScheduleRelationship
         }[]
     }
@@ -58,7 +63,7 @@ interface TripUpdateEntity extends FeedEntity {
 
 interface VehiclePositionEntity extends FeedEntity {
     readonly vehicle: {
-        readonly trip: Trip,
+        readonly trip: TripEntity,
         readonly position: {
             readonly lattitude: number
             readonly longitude: number
@@ -242,13 +247,116 @@ type ScheduleCache = {
     [key in keyof ScheduleDataTypes]: ScheduleDataTypes[key][]
 };
 
+interface Stop {
+    readonly id: StopID,
+    readonly code: StopCode | null,
+    readonly name: string,
+    readonly position: Position
+}
+
+interface Route {
+    readonly id: RouteID;
+}
+
+interface Trip {
+    readonly id: TripID,
+    readonly route: RouteID,
+}
+
+interface Position {
+    readonly lattitude: number,
+    readonly longitude: number
+}
+
+interface StopSchedule {
+    stop: Stop,
+    routes: Map<string, StopTime[]> 
+}
+
+interface StopTime {
+    arrival: Date,
+    departure: Date
+}
+
+class StopSchedules {
+    private stops = new Map<StopID, Stop>();
+    private stopCodes = new Map<StopCode, StopID>();
+    private routes = new Map<RouteID, Route>();
+    private trips = new Map<TripID, Trip>();
+    private schedules = new Map<StopID, StopSchedule>();
+
+    public constructor(schedule: ScheduleCache) {
+        // Load stop data
+        for (const stop of schedule.stops) {
+            this.stops.set(stop.stop_id, {
+                id: stop.stop_id,
+                code: stop.stop_code || null,
+                name: stop.stop_name,
+                position: {
+                    lattitude: Number(stop.stop_lat),
+                    longitude: Number(stop.stop_lon)
+                }
+            });
+
+            // Register stop code if it exists
+            if (stop.stop_code) {
+                this.stopCodes.set(stop.stop_code, stop.stop_id);
+            }
+        }
+
+        // Load route data
+        for (const route of schedule.routes) {
+            this.routes.set(route.route_id, {
+                id: route.route_id
+            });
+        }
+
+        // Load trip data
+        for (const trip of schedule.trips) {
+            this.trips.set(trip.trip_id, {
+                id: trip.trip_id,
+                route: trip.route_id
+            });
+        }
+
+        // Stop stop time data
+        for (const stopTime of schedule.stop_times) {
+            const trip = stopTime.trip_id;
+            if (!trip) {
+                Logger.logWarning(`Trip ID ${trip} not found`);
+            }
+
+            const route = this.trips.get(trip);
+            if (!route) {
+                Logger.logWarning(`Route ID ${route} not found`);
+            }
+
+            // TODO: Add to stop time list, create function for this
+        }
+    }
+    
+    public lookupId(stopId: string): StopSchedule | null {
+        const schedule = this.schedules.get(stopId);
+        return schedule ? schedule : null;
+    }
+
+    public lookupCode(stopCode: string): StopSchedule | null {
+        const stopId = this.stopCodes.get(stopCode);
+        return stopId ? this.lookupId(stopId) : null;
+    }
+
+    public update(feed: TripUpdateMessage) {
+        throw Error("Not implemented");
+    }
+}
+
 export class ScheduleManager {
     private url: string;
     private cachePath: string;
     private updateFrequency = 24 * 60 * 60 * 1000; // 24 hours
     private scheduler: TaskScheduler;
     
-    public data: ScheduleCache | null = null;
+    public cache: ScheduleCache | null = null;
 
     public constructor(
         url: string, 
@@ -289,7 +397,7 @@ export class ScheduleManager {
                 await this.cacheData();
             }
 
-            if (!this.data) {
+            if (!this.cache) {
                 await this.cacheData();
             }
         }
@@ -363,7 +471,7 @@ export class ScheduleManager {
             };
 
             const data = await utils.mappedPromises(promises);
-            this.data = data as ScheduleCache;
+            this.cache = data as ScheduleCache;
 
             Logger.logInfo(`Schedule ${cacheDirectoryName} cached into memory`);
         }
