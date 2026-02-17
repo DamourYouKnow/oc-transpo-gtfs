@@ -1,6 +1,7 @@
 import * as path from 'path';
 
 import Logger from './logger.ts';
+import * as utils from './utils.ts';
 
 import { 
     tripUpdates,
@@ -28,6 +29,8 @@ async function test() {
         1 * 60 * 1000
     );
     await scheduleUpdater.start();
+
+    Logger.logConsole(`Memory usage: ${utils.heapMemoryUsage().display}`);
 
     const updates = (await tripUpdates()).entity;
     

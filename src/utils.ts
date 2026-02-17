@@ -132,3 +132,28 @@ export function parseISODate(isoString: string): Date | null {
 
     return date;
 }
+
+type MemoryUnitPrefix = 'B' | 'KB' | 'MB' | 'GB'; 
+
+export function heapMemoryUsage(
+    prefix: MemoryUnitPrefix = 'MB'
+): { used: number, total: number, display: string } {
+    const memory = process.memoryUsage();
+    
+    const prefixMagnitudes: {[prefix in MemoryUnitPrefix]: number} = {
+        'B': 0,
+        'KB': 1,
+        'MB': 2,
+        'GB': 3 
+    };
+
+    const usedBytes = memory.heapUsed + memory.arrayBuffers;
+    const used = usedBytes / Math.pow(1024, prefixMagnitudes[prefix]);
+    const total = memory.rss / Math.pow(1024, prefixMagnitudes[prefix]);
+    
+    return {
+        used: used,
+        total: total,
+        display: `${used.toFixed(2)} / ${total.toFixed(2)} ${prefix}`
+    };
+}
