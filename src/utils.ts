@@ -116,6 +116,28 @@ export function httpGetBinary(
     });
 }
 
+export function dateString(date?: Date): string {
+    if (!date) date = new Date(Date.now());
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
+export function datetimeString(date?: Date): string {
+    if (!date) date = new Date(Date.now());
+
+    const datestring = dateString(date);
+
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    return `${datestring}T${hours}:${minutes}:${seconds}`;
+}
+
 export function ISOTimestamp(fileSafe: boolean=false): string {
     const now = new Date(Date.now());
     const timestamp = now.toISOString();
@@ -131,6 +153,12 @@ export function parseISODate(isoString: string): Date | null {
     if (!validDate) return null;
 
     return date;
+}
+
+export function sameDate(dateA: Date, dateB: Date): boolean {
+    return dateA.getDate() == dateB.getDate()
+        && dateA.getMonth() == dateB.getMonth()
+        && dateA.getFullYear() == dateB.getFullYear();
 }
 
 export const supportedTimezones = new Set(Intl.supportedValuesOf("timeZone"));

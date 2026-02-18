@@ -35,16 +35,6 @@ async function test() {
 
     Logger.logConsole(`Memory usage: ${utils.heapMemoryUsage().display}`);
 
-    // TODO: Move to GTFS module as this is agency specific
-    const agencies = scheduleUpdater?.cache?.agency;
-    if (agencies) {        
-        const agencyTimezone = agencies[0]?.agency_timezone;
-        if (agencyTimezone) {
-            const agencyTime = utils.applyTimezone(systemTime, agencyTimezone);
-            Logger.logInfo(`Agency time: ${agencyTime.toString()}`);        
-        }
-    }
-
     const updates = (await tripUpdates()).entity;
     
     const routeUpdates = updates.filter((update) => {

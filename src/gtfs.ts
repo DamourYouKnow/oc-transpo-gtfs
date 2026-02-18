@@ -7,6 +7,7 @@ import Logger from './logger';
 import * as utils from './utils';
 import { CSVRecord, readCSVFile } from './csv';
 import TaskScheduler from './task-scheduler';
+import { load } from 'protobufjs';
 
 // TODO: Move to index.ts
 const apiHost = "https://nextrip-public-api.azure-api.net"
@@ -22,6 +23,11 @@ type ServiceID = string;
 // https://gtfs.org/documentation/realtime/reference/
 type ScheduleRelationship = "SCHEDULED" | "ADDED" | "UNSCHEDULED" | "CANCELED"
         | "REPLACEMENT" | "DUPLICATED" | "NEW" | "DELETED";
+
+enum ExceptionType {
+    ADDED = '1',
+    REMOVED = '2'
+}
 
 export interface FeedMessage<TFeedEntity extends FeedEntity> {
     readonly header: FeedHeader,
@@ -106,7 +112,7 @@ interface AgencyCSVRecord extends CSVRecord {
 interface CalendarDateCSVRecord extends CSVRecord {
     readonly service_id: string,
     readonly date: string,
-    readonly exception_type: string
+    readonly exception_type: ExceptionType
 }
 
 interface CalendarCSVRecord extends CSVRecord {
@@ -261,6 +267,7 @@ interface Route {
 
 interface Trip {
     readonly id: TripID,
+    readonly service: TripID,
     readonly route: RouteID,
     readonly headsign: string | null
 }
@@ -271,7 +278,7 @@ interface Position {
 }
 
 interface StopSchedule {
-    stop: Stop,
+    stop: StopID,
     routes: Map<string, StopTime[]> 
 }
 
@@ -295,10 +302,16 @@ type ServiceDays = [
 ];
 
 interface Service {
-    id: ServiceID,
-    startTime: Date,
-    endTime: Date,
-    days: ServiceDays
+    readonly id: ServiceID,
+    readonly startTime: Date,
+    readonly endTime: Date,
+    readonly days: ServiceDays
+}
+
+interface ServiceException {
+    readonly service: ServiceID,
+    readonly date: Date,
+    readonly exceptionType: ExceptionType
 }
 
 interface FeedInfo {
@@ -312,21 +325,28 @@ interface Agency {
 }
 
 class GTFSFeed {
+    private loadTime: Date;
     private agency: Agency;
     private info: FeedInfo;
-    private services = new Set<Service>();
+    private services = new Map<ServiceID, Service>();
+    // TODO: Replace with Map<Date, ServiceException>
+    private activeServices: Set<ServiceID>;
     private stops = new Map<StopID, Stop>();
     private stopCodes = new Map<StopCode, StopID>();
     private routes = new Map<RouteID, Route>();
     private trips = new Map<TripID, Trip>();
     private schedules = new Map<StopID, StopSchedule>();
 
-    public constructor(schedule: ScheduleCache, time: Date) {
+    public constructor(schedule: ScheduleCache, loadTime: Date) {
+        this.loadTime = loadTime; 
+
         // Load agency and feed info
         const agency = schedule.agency[0];
         if (!agency) {
             throw Error("No agency in static schedule");
         }
+
+        Logger.logInfo(`Initializing GTFS feed for ${agency.agency_name}`);
 
         this.agency = {
             name: agency.agency_name,
@@ -372,14 +392,17 @@ class GTFSFeed {
         for (const trip of schedule.trips) {
             this.trips.set(trip.trip_id, {
                 id: trip.trip_id,
+                service: trip.service_id,
                 route: trip.route_id,
                 headsign: trip.trip_headsign || null
             });
         }
 
         // Load active services
-        time = utils.applyTimezone(time, this.agency.timezone);
-        const dayOfWeek = time.getDay();
+        loadTime = utils.applyTimezone(loadTime, this.agency.timezone);
+        Logger.logInfo(`Agency time: ${utils.datetimeString(loadTime)}`);
+
+        const dayOfWeek = loadTime.getDay();
         const isActiveDay = (dayString: string): boolean => dayString == '1';
 
         const services: Service[] = schedule.calendar.map((service) => {
@@ -399,25 +422,98 @@ class GTFSFeed {
             };
         });
 
+        for (const service of services) {
+            this.services.set(service.id, service);
+        }
+
         let activeServices = services.filter((service) => {
             return service.days[dayOfWeek]
         });
 
-        // TODO: Add and remove service exceptions in calendar_days
+        this.activeServices = new Set<ServiceID>(
+            activeServices.map((service) => service.id)
+        );
 
-        activeServices.forEach((service) => this.services.add(service));
+        // Get service exceptions for date
+        const calendarDates = schedule.calendar_dates;
 
-        // Stop stop time data
+        const exceptions: ServiceException[] = calendarDates.map((date) => {
+            return {
+                service: date.service_id,
+                date: new Date(
+                    `${utils.hyphenateYYYYMMDD(date.date)}T00:00:00`
+                ),
+                exceptionType: date.exception_type
+            };
+        });
+
+        const activeExceptions = exceptions.filter((exception) => {
+            return utils.sameDate(exception.date, loadTime)
+        });
+        const activeAddExceptions = activeExceptions.filter((exception) => {
+            return exception.exceptionType == ExceptionType.ADDED;
+        });
+        const activeRemoveExceptions = activeExceptions.filter((exception) => {
+            return exception.exceptionType == ExceptionType.REMOVED;
+        });
+
+        // Apply service exceptions
+        const findService = (serviceId: ServiceID) => {
+            const foundService = services.find((service) => {
+                return service.id == serviceId;
+            });
+
+            if (!foundService) {
+                Logger.logWarning(
+                    `Service not found for service exception ${serviceId}`
+                );
+            }
+
+            return foundService;
+        }
+
+        for (const exception of activeAddExceptions) {
+            const service = findService(exception.service);
+            if (service) {
+                this.activeServices.add(service.id);
+                Logger.logInfo(`Service exception added: ${service.id}`);
+            }
+        }
+        for (const exception of activeRemoveExceptions) {
+            const service = findService(exception.service);
+            if (service) {
+                this.activeServices.delete(service.id);
+                Logger.logInfo(`Service exception removed: ${service.id}`);
+            }
+        }
+
+        for (const serviceId of this.activeServices) {
+            Logger.logInfo(`Service ${serviceId} loaded`);
+        }
+
+        // Load stop time data
+        Logger.logInfo(`Loading stop time data for ${this.agency.name}`);
+
         for (const stopTime of schedule.stop_times) {
-            const tripId = stopTime.trip_id;
-            if (!tripId) {
-                Logger.logWarning(`Trip ID ${tripId} not found`);
+            const trip = this.trips.get(stopTime.trip_id);
+
+            if (!trip) {
+                Logger.logWarning(`Trip ID ${stopTime.trip_id} not found`);
                 continue;
             }
 
-            const route = this.trips.get(tripId);
+            const service = this.services.get(trip.service);
+            if (!service) {
+                Logger.logWarning(`Service ID ${trip.service} not found`);
+                continue;
+            }
+            
+            const isActiveTrip = this.activeServices.has(trip.service)
+            if (!isActiveTrip) continue;
+
+            const route = this.routes.get(trip.route);
             if (!route) {
-                Logger.logWarning(`Route for trip ${tripId} not found`);
+                Logger.logWarning(`Route ID ${trip.route} not found`);
                 continue;
             }
 
@@ -426,15 +522,31 @@ class GTFSFeed {
                 continue;
             }
 
+            const serviceDate = this.agencyDate(service.startTime);
+
+            const arrivalTime = stopTime.arrival_time ? utils.applyTimestamp(
+                serviceDate,
+                stopTime.arrival_time,
+                this.agency.timezone
+            ) : null;
+
+            const departureTime = stopTime.departure_time ? utils.applyTimestamp(
+                serviceDate,
+                stopTime.departure_time,
+                this.agency.timezone
+            ) : null;
+
             this.updateStopTime({
                 stop: stopTime.stop_id,
                 route: route.id,
                 trip: stopTime.trip_id,
-                arrival: null, // TODO
-                departure: null, // TODO
+                arrival: arrivalTime,
+                departure: departureTime,
                 realtime: false
             });
         }
+
+        Logger.logInfo(`GTFS feed for ${this.agency.name} loaded`);
     }
     
     public lookupId(stopId: string): StopSchedule | null {
@@ -451,33 +563,53 @@ class GTFSFeed {
         throw Error("Not implemented");
     }
 
-    private updateStopTime(stopTime: StopTime) {
-        const stopSchedule = this.schedules.get(stopTime.stop);
-        if (!stopSchedule) {
+    public agencyDate(date?: Date): Date {
+        if (!date) date = new Date(Date.now());
+        return utils.applyTimezone(date, this.agency.timezone);
+    }
 
+    private updateStopTime(stopTime: StopTime) {
+        let stopSchedule = this.schedules.get(stopTime.stop);
+        if (!stopSchedule) {
+            stopSchedule = {
+                stop: stopTime.stop,
+                routes: new Map<RouteID, StopTime[]>(),
+                
+            };
+
+            this.schedules.set(stopTime.stop, stopSchedule);
+        }
+
+        const stopTimes = stopSchedule.routes.get(stopTime.route);
+        if (!stopTimes) {
+            stopSchedule.routes.set(stopTime.route, [stopTime]);
+        }
+        else {
+            stopTimes.push(stopTime);
         }
     }
 
     private dateStart(datestring: string): Date {
         datestring = `${utils.hyphenateYYYYMMDD(datestring)}T00:00:00`;
-        const date = new Date(datestring);
-        return utils.applyTimezone(date, this.agency.timezone);
+        return this.agencyDate(new Date(datestring));
     }
 
     private dateEnd(datestring: string): Date {
         datestring = `${utils.hyphenateYYYYMMDD(datestring)}T24:00:00`;
-        const date = new Date(datestring);
-        return utils.applyTimezone(date, this.agency.timezone);
+        return this.agencyDate(new Date(datestring));
     }
 }
 
+// TODO: Rename to feed manager?
 export class ScheduleManager {
     private url: string;
     private cachePath: string;
     private updateFrequency = 24 * 60 * 60 * 1000; // 24 hours
     private scheduler: TaskScheduler;
     
+    // TODO: Remove cache, use feed instead
     public cache: ScheduleCache | null = null;
+    public feed: GTFSFeed | null = null;
 
     public constructor(
         url: string, 
@@ -595,6 +727,9 @@ export class ScheduleManager {
             this.cache = data as ScheduleCache;
 
             Logger.logInfo(`Schedule ${cacheDirectoryName} cached into memory`);
+
+            // TODO: Move outside cache date function
+            this.feed = new GTFSFeed(this.cache, new Date());
         }
         catch (err) {
             Logger.logError("Failed to cache schedule into memory", err);
